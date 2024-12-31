@@ -139,3 +139,54 @@
         (asserts! (is-valid-metadata metadata) err-invalid-metadata)
         (mint-single-badge metadata)))
 
+;; Add Test Suite for Badge Issuance
+;; Creates test cases to validate badge issuance functionality.
+(define-public (test-issue-badge)
+    (begin
+        (let ((metadata "Test Badge"))
+            (asserts! (is-eq (issue-badge-ui metadata) (ok u1)) err-badge-not-found)
+            (ok true))))
+
+;; Improve Batch Issuance by Returning Results
+;; Enhances batch-issue-badges function to return the results of all minted badges.
+(define-public (batch-issue-badges-with-results (metadatas (list 50 (string-ascii 256))))
+    (let ((results (fold mint-single-badge-in-batch metadatas (list))))
+        (ok results)))
+
+;; Add Functionality to Get Total Number of Badges Issued
+;; Adds functionality to get the total number of badges issued so far.
+(define-public (get-total-badges-issued)
+    (ok (var-get last-badge-id)))
+
+;; Security Enhancement - Revoke Badge
+;; Allows contract owner to revoke badges in case of policy violations
+(define-public (revoke-badge (badge-id-param uint))
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (asserts! (is-some (nft-get-owner? badge-id badge-id-param)) err-badge-not-found)
+        (try! (nft-burn? badge-id badge-id-param contract-owner))
+        (ok true)))
+
+;; Transfer a badge to another user
+(define-public (transfer-badge (badge-id-param uint) (recipient principal))
+    (begin
+        (asserts! (is-eq (unwrap! (nft-get-owner? badge-id badge-id-param) err-badge-not-found) tx-sender) err-owner-only)
+        (try! (nft-transfer? badge-id badge-id-param tx-sender recipient))
+        (ok true)))
+
+;; Add a test utility function to reset all badges (development only)
+(define-public (reset-badges)
+    (begin
+        (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+        (var-set last-badge-id u0)
+        (ok true)))
+
+;; Refactor single badge issuance to reuse in multiple cases
+(define-private (process-single-badge (metadata (string-ascii 256)) (recipient principal))
+    (let ((new-badge-id (+ (var-get last-badge-id) u1)))
+        (asserts! (is-valid-metadata metadata) err-invalid-metadata)
+        (try! (nft-mint? badge-id new-badge-id recipient))
+        (map-set badge-metadata new-badge-id metadata)
+        (var-set last-badge-id new-badge-id)
+        (ok new-badge-id)))
+
